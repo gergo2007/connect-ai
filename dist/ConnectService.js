@@ -14,7 +14,6 @@ class ConnectService {
      * @param {ILogger} logger - Logger instance
      */
     constructor(config, logger) {
-        this.cookieName = 'connect.se';
         this.requestQueue = Promise.resolve();
         this.COOKIE_OPTIONS = {
             httpOnly: true,
@@ -65,7 +64,7 @@ class ConnectService {
     /**
      * Initiates login process and saves authentication tokens
      */
-    async loginAndSaveToken(clientIp, callbackUrl, callbackType, request, response) {
+    async loginAndSaveToken(clientIp, callbackUrl, callbackType, response, refreshToken) {
         try {
             if (!this.validateClientIp(clientIp)) {
                 throw new AuthTokenError_1.AuthTokenError('Invalid client IP address', 'INVALID_IP');
@@ -73,11 +72,11 @@ class ConnectService {
             const postData = this.createLoginPostData(clientIp, callbackUrl, callbackType);
             const loginResponse = await this.httpClient.post(this.endpoints.login, postData);
             if (loginResponse.token) {
-                response.setCookie('poll_token', loginResponse.token, {
+                response.setCookie(ConnectService.POLL_COOKIE_NAME, loginResponse.token, {
                     ...this.COOKIE_OPTIONS,
                 });
             }
-            const pollResponse = await this.pollForLoginStatus(request, response, loginResponse.token);
+            const pollResponse = await this.pollForLoginStatus(loginResponse.token, refreshToken, response);
             return {
                 connected: pollResponse === 'complete',
             };
@@ -103,10 +102,9 @@ class ConnectService {
     /**
      * Gets a valid token
      */
-    async getValidToken(request, response) {
+    async getValidToken(refreshToken, response) {
         return this.enqueueRequest(async () => {
             try {
-                const refreshToken = request.cookies[this.cookieName];
                 if (!refreshToken) {
                     this.logger.debug('No refresh token found, skipping');
                     return null;
@@ -132,8 +130,8 @@ class ConnectService {
     /**
      * Gets user credits using valid token
      */
-    async getUserCredits(req, res) {
-        const token = await this.getValidToken(req, res);
+    async getUserCredits(refreshToken, res) {
+        const token = await this.getValidToken(refreshToken, res);
         if (!token) {
             return {
                 status: 'error',
@@ -154,9 +152,9 @@ class ConnectService {
      * @throws {AuthTokenError} When token validation fails
      * @returns {Promise<UserActive>}
      */
-    async checkUserStatus(req, res) {
+    async checkUserStatus(refreshToken, res) {
         try {
-            const token = await this.getValidToken(req, res);
+            const token = await this.getValidToken(refreshToken, res);
             if (!token) {
                 return {
                     status: 'error',
@@ -180,15 +178,12 @@ class ConnectService {
     /**
      * Polls for login status and saves tokens if successful
      */
-    async pollForLoginStatus(request, res, pollToken) {
+    async pollForLoginStatus(pollToken, refreshToken, res) {
         try {
-            const token = await this.getValidToken(request, res);
+            const token = await this.getValidToken(refreshToken, res);
             if (token) {
-                const result = await this.checkUserStatus(request, res);
+                const result = await this.checkUserStatus(refreshToken, res);
                 return result.isUserActive ? 'complete' : 'pending';
-            }
-            if (!pollToken) {
-                pollToken = request.cookies['poll_token'];
             }
             const pollResponse = await this.httpClient.get(this.endpoints.poll, {
                 params: { token: pollToken },
@@ -241,7 +236,7 @@ class ConnectService {
      */
     saveTokens(tokens, response) {
         try {
-            response.setCookie(this.cookieName, tokens.refreshToken, {
+            response.setCookie(ConnectService.COOKIE_NAME, tokens.refreshToken, {
                 ...this.COOKIE_OPTIONS,
                 maxAge: Math.min(this.COOKIE_OPTIONS.maxAge, tokens.expiresAt - Date.now())
             });
@@ -256,7 +251,7 @@ class ConnectService {
      * Clears authentication tokens
      */
     clearTokens(response) {
-        response.setCookie(this.cookieName, '', {
+        response.setCookie(ConnectService.COOKIE_NAME, '', {
             ...this.COOKIE_OPTIONS,
             maxAge: 0
         });
@@ -274,6 +269,7 @@ class ConnectService {
      * Creates login post data
      */
     createLoginPostData(clientIp, callbackUrl, callbackType) {
+        console.log(this.config.clientId);
         const postData = {
             client_id: this.config.clientId,
             client_ip: clientIp,
@@ -310,4 +306,6 @@ class ConnectService {
     }
 }
 exports.ConnectService = ConnectService;
+ConnectService.COOKIE_NAME = 'connect.se';
+ConnectService.POLL_COOKIE_NAME = 'poll_token';
 ConnectService.VERSION = '1.0.0';

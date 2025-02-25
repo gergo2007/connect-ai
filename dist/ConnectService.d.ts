@@ -1,10 +1,11 @@
-import { AuthConfig, AuthTokens, ILogger, IRequest, IResponse, LoginResponse, UserActive, UserCredits } from './types';
+import { AuthConfig, AuthTokens, ILogger, IResponse, LoginResponse, UserActive, UserCredits } from './types';
 /**
  * Service for handling authentication tokens and user credentials
  * @class ConnectService
  */
 export declare class ConnectService {
-    private readonly cookieName;
+    static readonly COOKIE_NAME = "connect.se";
+    static readonly POLL_COOKIE_NAME = "poll_token";
     private static readonly VERSION;
     private readonly config;
     private readonly httpClient;
@@ -26,7 +27,7 @@ export declare class ConnectService {
     /**
      * Initiates login process and saves authentication tokens
      */
-    loginAndSaveToken(clientIp: string, callbackUrl: string, callbackType: string, request: IRequest, response: IResponse): Promise<LoginResponse>;
+    loginAndSaveToken(clientIp: string, callbackUrl: string, callbackType: string, response: IResponse, refreshToken: string | null): Promise<LoginResponse>;
     /**
      * Enqueues requests to prevent race conditions during token refresh
      */
@@ -34,21 +35,21 @@ export declare class ConnectService {
     /**
      * Gets a valid token
      */
-    getValidToken(request: IRequest, response: IResponse): Promise<string | null>;
+    getValidToken(refreshToken: string | null, response: IResponse): Promise<string | null>;
     /**
      * Gets user credits using valid token
      */
-    getUserCredits(req: IRequest, res: IResponse): Promise<UserCredits>;
+    getUserCredits(refreshToken: string | null, res: IResponse): Promise<UserCredits>;
     /**
      * Checks the current user's status
      * @throws {AuthTokenError} When token validation fails
      * @returns {Promise<UserActive>}
      */
-    checkUserStatus(req: IRequest, res: IResponse): Promise<UserActive>;
+    checkUserStatus(refreshToken: string | null, res: IResponse): Promise<UserActive>;
     /**
      * Polls for login status and saves tokens if successful
      */
-    pollForLoginStatus(request: IRequest, res: IResponse, pollToken: string | null | undefined): Promise<string>;
+    pollForLoginStatus(pollToken: string, refreshToken: string | null, res: IResponse): Promise<string>;
     /**
      * Refreshes the access token using refresh token
      */

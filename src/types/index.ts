@@ -23,7 +23,7 @@ export interface TokenData {
 }
 
 export interface LoginResponse {
-    connected: boolean
+    connected: boolean,
 }
 
 export interface PollResponse {

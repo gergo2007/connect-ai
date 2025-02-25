@@ -4,7 +4,6 @@ import {
     CookieOptions,
     Endpoints,
     ILogger,
-    IRequest,
     IResponse,
     LoginResponse,
     PollResponse,
@@ -20,7 +19,8 @@ import {AuthTokenError} from './exceptions/AuthTokenError';
  * @class ConnectService
  */
 export class ConnectService {
-    private readonly cookieName = 'connect.se';
+    public static readonly COOKIE_NAME = 'connect.se';
+    public static readonly POLL_COOKIE_NAME = 'poll_token';
 
     private static readonly VERSION = '1.0.0';
 
@@ -102,8 +102,8 @@ export class ConnectService {
         clientIp: string,
         callbackUrl: string,
         callbackType: string,
-        request: IRequest,
-        response: IResponse
+        response: IResponse,
+        refreshToken: string | null,
     ): Promise<LoginResponse> {
         try {
             if (!this.validateClientIp(clientIp)) {
@@ -117,12 +117,12 @@ export class ConnectService {
             );
 
             if (loginResponse.token) {
-                response.setCookie('poll_token', loginResponse.token, {
+                response.setCookie(ConnectService.POLL_COOKIE_NAME, loginResponse.token, {
                     ...this.COOKIE_OPTIONS,
                 })
             }
 
-            const pollResponse = await this.pollForLoginStatus(request, response, loginResponse.token);
+            const pollResponse = await this.pollForLoginStatus(loginResponse.token, refreshToken, response);
 
             return {
                 connected: pollResponse === 'complete',
@@ -150,13 +150,11 @@ export class ConnectService {
      * Gets a valid token
      */
     public async getValidToken(
-        request: IRequest,
+        refreshToken: string | null,
         response: IResponse
     ): Promise<string | null> {
         return this.enqueueRequest(async () => {
             try {
-                const refreshToken = request.cookies[this.cookieName];
-
                 if (!refreshToken) {
                     this.logger.debug('No refresh token found, skipping');
                     return null;
@@ -185,8 +183,8 @@ export class ConnectService {
     /**
      * Gets user credits using valid token
      */
-    public async getUserCredits(req: IRequest, res: IResponse): Promise<UserCredits> {
-        const token = await this.getValidToken(req, res);
+    public async getUserCredits(refreshToken: string | null, res: IResponse): Promise<UserCredits> {
+        const token = await this.getValidToken(refreshToken, res);
         if (!token) {
             return {
                 status: 'error',
@@ -211,9 +209,9 @@ export class ConnectService {
      * @throws {AuthTokenError} When token validation fails
      * @returns {Promise<UserActive>}
      */
-    public async checkUserStatus(req: IRequest, res: IResponse): Promise<UserActive> {
+    public async checkUserStatus(refreshToken: string | null, res: IResponse): Promise<UserActive> {
         try {
-            const token = await this.getValidToken(req, res);
+            const token = await this.getValidToken(refreshToken, res);
             if (!token) {
                 return {
                     status: 'error',
@@ -240,16 +238,12 @@ export class ConnectService {
     /**
      * Polls for login status and saves tokens if successful
      */
-    public async pollForLoginStatus(request: IRequest, res: IResponse, pollToken: string | null | undefined): Promise<string> {
+    public async pollForLoginStatus(pollToken: string, refreshToken: string | null, res: IResponse): Promise<string> {
         try {
-            const token = await this.getValidToken(request, res);
+            const token = await this.getValidToken(refreshToken, res);
             if (token) {
-                const result = await this.checkUserStatus(request, res)
+                const result = await this.checkUserStatus(refreshToken, res)
                 return result.isUserActive ? 'complete' : 'pending'
-            }
-
-            if (!pollToken) {
-                pollToken = request.cookies['poll_token'];
             }
 
             const pollResponse = await this.httpClient.get<PollResponse>(
@@ -324,7 +318,7 @@ export class ConnectService {
      */
     private saveTokens(tokens: AuthTokens, response: IResponse): void {
         try {
-            response.setCookie(this.cookieName, tokens.refreshToken, {
+            response.setCookie(ConnectService.COOKIE_NAME, tokens.refreshToken, {
                 ...this.COOKIE_OPTIONS,
                 maxAge: Math.min(this.COOKIE_OPTIONS.maxAge, tokens.expiresAt - Date.now())
             });
@@ -340,7 +334,7 @@ export class ConnectService {
      * Clears authentication tokens
      */
     private clearTokens(response: IResponse): void {
-        response.setCookie(this.cookieName, '', {
+        response.setCookie(ConnectService.COOKIE_NAME, '', {
             ...this.COOKIE_OPTIONS,
             maxAge: 0
         });
@@ -364,6 +358,7 @@ export class ConnectService {
      * Creates login post data
      */
     private createLoginPostData(clientIp: string, callbackUrl?: string, callbackType?: string) {
+        console.log(this.config.clientId)
         const postData: Record<string, string> = {
             client_id: this.config.clientId,
             client_ip: clientIp,

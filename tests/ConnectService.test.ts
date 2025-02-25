@@ -1,5 +1,5 @@
 import { ConnectService } from '../src/ConnectService';
-import { IRequest, IResponse, UserActive } from '../src/types';
+import { IResponse, UserActive } from '../src/types';
 import { HttpClient } from '../src/utils/HttpClient';
 import { AuthTokenError } from "../src/exceptions/AuthTokenError";
 
@@ -7,7 +7,6 @@ jest.mock('../src/utils/HttpClient');
 
 describe('ConnectService', () => {
     let connectService: ConnectService;
-    let mockRequest: IRequest;
     let mockResponse: IResponse;
     let mockHttpClient: jest.SpyInstance;
 
@@ -18,10 +17,6 @@ describe('ConnectService', () => {
             clientId: 'test-client-id'
         });
 
-        mockRequest = {
-            cookies: {}
-        };
-
         mockResponse = {
             setCookie: jest.fn(),
         };
@@ -31,7 +26,7 @@ describe('ConnectService', () => {
 
     describe('Token Management', () => {
         it('should handle token refresh', async () => {
-            mockRequest.cookies['connect.se'] = 'test-refresh-token';
+            const refreshToken = 'test-refresh-token';
 
             mockHttpClient.mockResolvedValueOnce({
                 access_token: 'new-access-token',
@@ -39,7 +34,7 @@ describe('ConnectService', () => {
                 expires_in: 3600
             });
 
-            const token = await connectService.getValidToken(mockRequest, mockResponse);
+            const token = await connectService.getValidToken(refreshToken, mockResponse);
             expect(token).toBe('new-access-token');
             expect(mockResponse.setCookie).toHaveBeenCalledWith(
                 'connect.se',
@@ -49,12 +44,12 @@ describe('ConnectService', () => {
         });
 
         it('should return null when no refresh token exists', async () => {
-            const token = await connectService.getValidToken(mockRequest, mockResponse);
+            const token = await connectService.getValidToken(null, mockResponse);
             expect(token).toBeNull();
         });
 
         it('should handle refresh token failure', async () => {
-            mockRequest.cookies['connect.se'] = 'invalid-refresh-token';
+            const refreshToken = 'invalid-refresh-token';
 
             // Mock HTTP client to reject with an error that includes response data
             mockHttpClient.mockRejectedValueOnce({
@@ -68,7 +63,7 @@ describe('ConnectService', () => {
                 }
             });
 
-            const token = await connectService.getValidToken(mockRequest, mockResponse);
+            const token = await connectService.getValidToken(refreshToken, mockResponse);
 
             expect(token).toBeNull();
             expect(mockResponse.setCookie).toHaveBeenCalledWith(
@@ -80,7 +75,6 @@ describe('ConnectService', () => {
                 }
             );
         });
-
     });
 
     describe('Login Process', () => {
@@ -88,7 +82,6 @@ describe('ConnectService', () => {
             // Mock login response
             mockHttpClient
                 .mockResolvedValueOnce({
-                    connected: true,
                     token: 'test-token',
                     url: 'http://test.com'
                 });
@@ -108,13 +101,20 @@ describe('ConnectService', () => {
                 '192.168.1.1',
                 'https://example.com/cb',
                 'oauth',
+                null,
                 mockResponse
             );
 
             expect(result).toEqual({
                 connected: true,
-                url: 'http://test.com'
+                token: 'test-token'
             });
+
+            expect(mockResponse.setCookie).toHaveBeenCalledWith(
+                'poll_token',
+                'test-token',
+                expect.any(Object)
+            );
         });
 
         it('should handle invalid IP address', async () => {
@@ -123,6 +123,7 @@ describe('ConnectService', () => {
                     'invalid-ip',
                     'https://example.com/cb',
                     'oauth',
+                    null,
                     mockResponse
                 )
             ).rejects.toThrow(AuthTokenError);
@@ -131,16 +132,16 @@ describe('ConnectService', () => {
 
     describe('User Status', () => {
         it('should return inactive status when no valid token exists', async () => {
-            const result = await connectService.checkUserStatus(mockRequest, mockResponse);
+            const result = await connectService.checkUserStatus(null, mockResponse);
             expect(result).toEqual({
                 status: 'error',
-                user_active: false,
+                isUserActive: false,
                 code: 0
             });
         });
 
         it('should return active user status with valid token', async () => {
-            mockRequest.cookies['connect.se'] = 'test-refresh-token';
+            const refreshToken = 'test-refresh-token';
 
             mockHttpClient.mockResolvedValueOnce({
                 access_token: 'new-access-token',
@@ -150,14 +151,14 @@ describe('ConnectService', () => {
 
             const mockUserActive: UserActive = {
                 status: 'success',
-                user_active: true,
+                isUserActive: true,
                 code: 200
             };
 
             jest.spyOn(HttpClient.prototype, 'get')
                 .mockResolvedValueOnce(mockUserActive);
 
-            const result = await connectService.checkUserStatus(mockRequest, mockResponse);
+            const result = await connectService.checkUserStatus(refreshToken, mockResponse);
             expect(result).toEqual(mockUserActive);
         });
     });

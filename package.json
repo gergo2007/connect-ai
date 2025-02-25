@@ -39,5 +39,17 @@
     "prettier": "^3.0.0",
     "ts-jest": "^29.2.5",
     "typescript": "^5.0.0"
-  }
+  },
+  "directories": {
+    "example": "examples",
+    "test": "tests"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gergo2007/connect-ai.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gergo2007/connect-ai/issues"
+  },
+  "homepage": "https://github.com/gergo2007/connect-ai#readme"
 }
