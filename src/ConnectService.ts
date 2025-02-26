@@ -247,6 +247,12 @@ export class ConnectService {
                 }
             }
 
+            if (!pollToken) {
+                return {
+                    status: 'error'
+                }
+            }
+
             const pollResponse = await this.httpClient.get<PollResponse>(
                 this.endpoints.poll,
                 {
