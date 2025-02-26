@@ -125,7 +125,7 @@ export class ConnectService {
             const pollResponse = await this.pollForLoginStatus(loginResponse.token, refreshToken, response);
 
             return {
-                connected: pollResponse === 'complete',
+                connected: pollResponse.status === 'complete',
             };
         } catch (error) {
             throw this.handleError('Login failed', error);
@@ -169,7 +169,6 @@ export class ConnectService {
 
                 this.saveTokens(refreshedTokens, response);
                 return refreshedTokens.accessToken;
-
             } catch (error) {
                 this.logger.error('Token validation failed', {
                     error: error instanceof Error ? error.message : 'Unknown error'
@@ -238,12 +237,14 @@ export class ConnectService {
     /**
      * Polls for login status and saves tokens if successful
      */
-    public async pollForLoginStatus(pollToken: string, refreshToken: string | null, res: IResponse): Promise<string> {
+    public async pollForLoginStatus(pollToken: string, refreshToken: string | null, res: IResponse) {
         try {
             const token = await this.getValidToken(refreshToken, res);
             if (token) {
                 const result = await this.checkUserStatus(refreshToken, res)
-                return result.isUserActive ? 'complete' : 'pending'
+                return {
+                    status: result.isUserActive ? 'complete' : 'pending'
+                }
             }
 
             const pollResponse = await this.httpClient.get<PollResponse>(
@@ -263,7 +264,9 @@ export class ConnectService {
                 this.saveTokens(tokens, res);
             }
 
-            return pollResponse.status;
+            return {
+                status: pollResponse.status,
+            };
         } catch (error) {
             this.handleError('Poll status check failed', error);
         }
