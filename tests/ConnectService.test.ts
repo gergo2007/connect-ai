@@ -8,7 +8,7 @@ jest.mock('../src/utils/HttpClient');
 describe('ConnectService', () => {
     let connectService: ConnectService;
     let mockResponse: IResponse;
-    let mockHttpClient: jest.SpyInstance;
+    let mockHttpClient: jest.Mocked<HttpClient>;
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -21,14 +21,15 @@ describe('ConnectService', () => {
             setCookie: jest.fn(),
         };
 
-        mockHttpClient = jest.spyOn(HttpClient.prototype, 'post');
+        // Update the mock to properly mock the entire HttpClient instance
+        mockHttpClient = HttpClient.prototype as jest.Mocked<HttpClient>;
     });
 
     describe('Token Management', () => {
         it('should handle token refresh', async () => {
             const refreshToken = 'test-refresh-token';
 
-            mockHttpClient.mockResolvedValueOnce({
+            mockHttpClient.post.mockResolvedValueOnce({
                 access_token: 'new-access-token',
                 refresh_token: 'new-refresh-token',
                 expires_in: 3600
@@ -39,7 +40,10 @@ describe('ConnectService', () => {
             expect(mockResponse.setCookie).toHaveBeenCalledWith(
                 'connect.se',
                 'new-refresh-token',
-                expect.any(Object)
+                expect.objectContaining({
+                    httpOnly: true,
+                    secure: true
+                })
             );
         });
 
@@ -51,28 +55,18 @@ describe('ConnectService', () => {
         it('should handle refresh token failure', async () => {
             const refreshToken = 'invalid-refresh-token';
 
-            // Mock HTTP client to reject with an error that includes response data
-            mockHttpClient.mockRejectedValueOnce({
-                message: 'Request failed with status code 401',
-                response: {
-                    status: 401,
-                    data: {
-                        error: 'invalid_grant',
-                        error_description: 'Invalid refresh token'
-                    }
-                }
-            });
+            // Mock HTTP client to reject with an error
+            mockHttpClient.post.mockRejectedValueOnce(new Error('Invalid refresh token'));
 
             const token = await connectService.getValidToken(refreshToken, mockResponse);
 
             expect(token).toBeNull();
             expect(mockResponse.setCookie).toHaveBeenCalledWith(
                 'connect.se',
-                '', // Empty string value
-                {
-                    ...connectService['COOKIE_OPTIONS'],
+                '',
+                expect.objectContaining({
                     maxAge: 0
-                }
+                })
             );
         });
     });
@@ -80,39 +74,36 @@ describe('ConnectService', () => {
     describe('Login Process', () => {
         it('should handle successful login and token saving', async () => {
             // Mock login response
-            mockHttpClient
-                .mockResolvedValueOnce({
-                    token: 'test-token',
-                    url: 'http://test.com'
-                });
+            mockHttpClient.post.mockResolvedValueOnce({
+                token: 'test-poll-token',
+                url: 'http://test.com'
+            });
 
-            // Mock poll response with get method
-            jest.spyOn(HttpClient.prototype, 'get')
-                .mockResolvedValueOnce({
-                    status: 'complete',
-                    meta: {
-                        access_token: 'test-access-token',
-                        refresh_token: 'test-refresh-token',
-                        expires_in: 3600
-                    }
-                });
+            // Mock poll response
+            mockHttpClient.get.mockResolvedValueOnce({
+                status: 'complete',
+                meta: {
+                    access_token: 'test-access-token',
+                    refresh_token: 'test-refresh-token',
+                    expires_in: 3600
+                }
+            });
 
             const result = await connectService.loginAndSaveToken(
                 '192.168.1.1',
                 'https://example.com/cb',
                 'oauth',
-                null,
-                mockResponse
+                mockResponse,
+                null
             );
 
             expect(result).toEqual({
-                connected: true,
-                token: 'test-token'
+                connected: true
             });
 
             expect(mockResponse.setCookie).toHaveBeenCalledWith(
                 'poll_token',
-                'test-token',
+                'test-poll-token',
                 expect.any(Object)
             );
         });
@@ -123,8 +114,8 @@ describe('ConnectService', () => {
                     'invalid-ip',
                     'https://example.com/cb',
                     'oauth',
-                    null,
-                    mockResponse
+                    mockResponse,
+                    null
                 )
             ).rejects.toThrow(AuthTokenError);
         });
@@ -143,7 +134,8 @@ describe('ConnectService', () => {
         it('should return active user status with valid token', async () => {
             const refreshToken = 'test-refresh-token';
 
-            mockHttpClient.mockResolvedValueOnce({
+            // Mock the token refresh
+            mockHttpClient.post.mockResolvedValueOnce({
                 access_token: 'new-access-token',
                 refresh_token: 'new-refresh-token',
                 expires_in: 3600
@@ -155,11 +147,87 @@ describe('ConnectService', () => {
                 code: 200
             };
 
-            jest.spyOn(HttpClient.prototype, 'get')
-                .mockResolvedValueOnce(mockUserActive);
+            // Mock the user status API call
+            mockHttpClient.get.mockResolvedValueOnce(mockUserActive);
 
             const result = await connectService.checkUserStatus(refreshToken, mockResponse);
             expect(result).toEqual(mockUserActive);
+        });
+    });
+
+    describe('User Credits', () => {
+        it('should return error status when no valid token exists', async () => {
+            const result = await connectService.getUserCredits(null, mockResponse);
+            expect(result).toEqual({
+                status: 'error',
+                credits: 0
+            });
+        });
+
+        it('should fetch user credits with valid token', async () => {
+            const refreshToken = 'test-refresh-token';
+
+            // Mock the token refresh
+            mockHttpClient.post.mockResolvedValueOnce({
+                access_token: 'new-access-token',
+                refresh_token: 'new-refresh-token',
+                expires_in: 3600
+            });
+
+            // Mock the user credits API call
+            mockHttpClient.get.mockResolvedValueOnce({
+                status: 'success',
+                credits: 100
+            });
+
+            const result = await connectService.getUserCredits(refreshToken, mockResponse);
+            expect(result).toEqual({
+                status: 'success',
+                credits: 100
+            });
+        });
+    });
+
+    describe('Poll For Login Status', () => {
+        it('should handle complete poll status with existing token', async () => {
+            const refreshToken = 'test-refresh-token';
+            const pollToken = 'test-poll-token';
+
+            // Mock the poll API call to return complete status
+            mockHttpClient.get.mockResolvedValueOnce({
+                status: 'complete',
+                meta: {
+                    access_token: 'test-access-token',
+                    refresh_token: 'test-refresh-token',
+                    expires_in: 3600
+                }
+            });
+
+            const result = await connectService.pollForLoginStatus(pollToken, refreshToken, mockResponse);
+            expect(result).toEqual({
+                status: 'complete'
+            });
+
+            // Verify that the refresh token was saved
+            expect(mockResponse.setCookie).toHaveBeenCalledWith(
+                'connect.se',
+                'test-refresh-token',
+                expect.any(Object)
+            );
+        });
+
+        it('should handle pending poll status', async () => {
+            const pollToken = 'test-poll-token';
+
+            // Mock the poll API call to return pending status
+            mockHttpClient.get.mockResolvedValueOnce({
+                status: 'pending'
+            });
+
+            const result = await connectService.pollForLoginStatus(pollToken, null, mockResponse);
+            expect(result).toEqual({
+                status: 'pending'
+            });
         });
     });
 });

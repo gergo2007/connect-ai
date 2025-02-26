@@ -49,7 +49,9 @@ export declare class ConnectService {
     /**
      * Polls for login status and saves tokens if successful
      */
-    pollForLoginStatus(pollToken: string, refreshToken: string | null, res: IResponse): Promise<string>;
+    pollForLoginStatus(pollToken: string, refreshToken: string | null, res: IResponse): Promise<{
+        status: string;
+    }>;
     /**
      * Refreshes the access token using refresh token
      */

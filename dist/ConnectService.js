@@ -78,7 +78,7 @@ class ConnectService {
             }
             const pollResponse = await this.pollForLoginStatus(loginResponse.token, refreshToken, response);
             return {
-                connected: pollResponse === 'complete',
+                connected: pollResponse.status === 'complete',
             };
         }
         catch (error) {
@@ -183,7 +183,9 @@ class ConnectService {
             const token = await this.getValidToken(refreshToken, res);
             if (token) {
                 const result = await this.checkUserStatus(refreshToken, res);
-                return result.isUserActive ? 'complete' : 'pending';
+                return {
+                    status: result.isUserActive ? 'complete' : 'pending'
+                };
             }
             const pollResponse = await this.httpClient.get(this.endpoints.poll, {
                 params: { token: pollToken },
@@ -196,7 +198,9 @@ class ConnectService {
                 };
                 this.saveTokens(tokens, res);
             }
-            return pollResponse.status;
+            return {
+                status: pollResponse.status,
+            };
         }
         catch (error) {
             this.handleError('Poll status check failed', error);
