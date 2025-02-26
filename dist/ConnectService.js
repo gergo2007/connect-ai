@@ -15,6 +15,13 @@ class ConnectService {
      */
     constructor(config, logger) {
         this.requestQueue = Promise.resolve();
+        // Token cache implementation
+        this.tokenCache = {
+            accessToken: null,
+            expiresAt: 0
+        };
+        // Cache buffer time (30 seconds before expiration)
+        this.TOKEN_CACHE_BUFFER_MS = 30000;
         this.COOKIE_OPTIONS = {
             httpOnly: true,
             secure: true,
@@ -32,7 +39,9 @@ class ConnectService {
         };
         this.validateConfig(config);
         this.config = config;
-        this.httpClient = new HttpClient_1.HttpClient();
+        this.httpClient = new HttpClient_1.HttpClient({
+            timeout: 5000,
+        });
         this.logger = logger || console;
     }
     /**
@@ -105,6 +114,11 @@ class ConnectService {
     async getValidToken(refreshToken, response) {
         return this.enqueueRequest(async () => {
             try {
+                const now = Date.now();
+                if (this.tokenCache.accessToken && this.tokenCache.expiresAt > now + this.TOKEN_CACHE_BUFFER_MS) {
+                    this.logger.debug('Using cached access token');
+                    return this.tokenCache.accessToken;
+                }
                 if (!refreshToken) {
                     this.logger.debug('No refresh token found, skipping');
                     return null;
@@ -113,9 +127,14 @@ class ConnectService {
                 if (!refreshedTokens) {
                     this.logger.error('Failed to refresh tokens');
                     this.clearTokens(response);
+                    this.invalidateCache();
                     return null;
                 }
                 this.saveTokens(refreshedTokens, response);
+                this.tokenCache = {
+                    accessToken: refreshedTokens.accessToken,
+                    expiresAt: refreshedTokens.expiresAt
+                };
                 return refreshedTokens.accessToken;
             }
             catch (error) {
@@ -123,9 +142,18 @@ class ConnectService {
                     error: error instanceof Error ? error.message : 'Unknown error'
                 });
                 this.clearTokens(response);
+                this.invalidateCache();
                 return null;
             }
         });
+    }
+    invalidateCache() {
+        this.logger.debug('Token cache invalidated');
+        return;
+        this.tokenCache = {
+            accessToken: null,
+            expiresAt: 0
+        };
     }
     /**
      * Gets user credits using valid token
@@ -139,9 +167,10 @@ class ConnectService {
             };
         }
         try {
-            return await this.httpClient.get(this.endpoints.getUserPoints, {
+            const response = await this.httpClient.get(this.endpoints.getUserPoints, {
                 headers: { Authorization: `Bearer ${token}` },
             });
+            return response.details;
         }
         catch (error) {
             this.handleError('Failed to get user credits', error);
@@ -163,12 +192,18 @@ class ConnectService {
                 };
             }
             try {
-                return await this.httpClient.get(this.endpoints.getUserActive, {
+                const response = await this.httpClient.get(this.endpoints.getUserActive, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
+                return {
+                    status: response.detail.status,
+                    code: parseInt(response.detail.code) || 0,
+                    isUserActive: response.detail.user_active
+                };
             }
             catch (error) {
-                this.handleError('Failed to get user credits', error);
+                console.log(error);
+                this.handleError('Failed to get user status', error);
             }
         }
         catch (error) {
@@ -187,6 +222,11 @@ class ConnectService {
                     status: result.isUserActive ? 'complete' : 'pending'
                 };
             }
+            if (!pollToken) {
+                return {
+                    status: 'error'
+                };
+            }
             const pollResponse = await this.httpClient.get(this.endpoints.poll, {
                 params: { token: pollToken },
             });
@@ -197,6 +237,10 @@ class ConnectService {
                     expiresAt: Date.now() + (pollResponse.meta.expires_in * 1000)
                 };
                 this.saveTokens(tokens, res);
+                this.tokenCache = {
+                    accessToken: tokens.accessToken,
+                    expiresAt: tokens.expiresAt
+                };
             }
             return {
                 status: pollResponse.status,
@@ -214,9 +258,15 @@ class ConnectService {
             throw new AuthTokenError_1.AuthTokenError('Invalid refresh token', 'INVALID_REFRESH_TOKEN');
         }
         try {
-            const response = await this.httpClient.post(this.endpoints.token, {
-                refresh_token: refreshToken,
-                client_id: this.config.clientId
+            const formData = new URLSearchParams();
+            formData.append('refresh_token', refreshToken);
+            formData.append('client_id', this.config.clientId);
+            formData.append('grant_type', 'refresh_token');
+            // Override content type just for this request
+            const response = await this.httpClient.post(this.endpoints.token, formData.toString(), {
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                }
             });
             if (!response?.access_token || !response?.refresh_token || !response?.expires_in) {
                 throw new AuthTokenError_1.AuthTokenError('Invalid token response', 'INVALID_TOKEN_RESPONSE');
@@ -255,11 +305,12 @@ class ConnectService {
      * Clears authentication tokens
      */
     clearTokens(response) {
+        this.logger.debug('Tokens cleared from cookies');
+        return;
         response.setCookie(ConnectService.COOKIE_NAME, '', {
             ...this.COOKIE_OPTIONS,
             maxAge: 0
         });
-        this.logger.debug('Tokens cleared from cookies');
     }
     /**
      * Validates configuration
@@ -273,7 +324,6 @@ class ConnectService {
      * Creates login post data
      */
     createLoginPostData(clientIp, callbackUrl, callbackType) {
-        console.log(this.config.clientId);
         const postData = {
             client_id: this.config.clientId,
             client_ip: clientIp,

@@ -11,6 +11,8 @@ export declare class ConnectService {
     private readonly httpClient;
     private readonly logger;
     private requestQueue;
+    private tokenCache;
+    private readonly TOKEN_CACHE_BUFFER_MS;
     private readonly COOKIE_OPTIONS;
     private endpoints;
     /**
@@ -36,6 +38,7 @@ export declare class ConnectService {
      * Gets a valid token
      */
     getValidToken(refreshToken: string | null, response: IResponse): Promise<string | null>;
+    private invalidateCache;
     /**
      * Gets user credits using valid token
      */

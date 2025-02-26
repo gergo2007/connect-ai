@@ -29,6 +29,18 @@ export class ConnectService {
     private readonly logger: ILogger;
     private requestQueue: Promise<any> = Promise.resolve();
 
+    // Token cache implementation
+    private tokenCache: {
+        accessToken: string | null;
+        expiresAt: number;
+    } = {
+        accessToken: null,
+        expiresAt: 0
+    };
+
+    // Cache buffer time (30 seconds before expiration)
+    private readonly TOKEN_CACHE_BUFFER_MS = 30000;
+
     private readonly COOKIE_OPTIONS: CookieOptions = {
         httpOnly: true,
         secure: true,
@@ -58,7 +70,9 @@ export class ConnectService {
         this.validateConfig(config);
 
         this.config = config;
-        this.httpClient = new HttpClient();
+        this.httpClient = new HttpClient({
+            timeout: 5000,
+        });
         this.logger = logger || console;
 
     }
@@ -155,6 +169,12 @@ export class ConnectService {
     ): Promise<string | null> {
         return this.enqueueRequest(async () => {
             try {
+                const now = Date.now();
+                if (this.tokenCache.accessToken && this.tokenCache.expiresAt > now + this.TOKEN_CACHE_BUFFER_MS) {
+                    this.logger.debug('Using cached access token');
+                    return this.tokenCache.accessToken;
+                }
+
                 if (!refreshToken) {
                     this.logger.debug('No refresh token found, skipping');
                     return null;
@@ -164,19 +184,35 @@ export class ConnectService {
                 if (!refreshedTokens) {
                     this.logger.error('Failed to refresh tokens');
                     this.clearTokens(response);
+                    this.invalidateCache();
                     return null;
                 }
 
                 this.saveTokens(refreshedTokens, response);
+
+                this.tokenCache = {
+                    accessToken: refreshedTokens.accessToken,
+                    expiresAt: refreshedTokens.expiresAt
+                };
+
                 return refreshedTokens.accessToken;
             } catch (error) {
                 this.logger.error('Token validation failed', {
                     error: error instanceof Error ? error.message : 'Unknown error'
                 });
                 this.clearTokens(response);
+                this.invalidateCache();
                 return null;
             }
         });
+    }
+
+    private invalidateCache(): void {
+        this.logger.debug('Token cache invalidated');
+        this.tokenCache = {
+            accessToken: null,
+            expiresAt: 0
+        };
     }
 
     /**
@@ -192,12 +228,16 @@ export class ConnectService {
         }
 
         try {
-            return await this.httpClient.get<UserCredits>(
+            const response = await this.httpClient.get<{
+                details: UserCredits
+            }>(
                 this.endpoints.getUserPoints,
                 {
                     headers: { Authorization: `Bearer ${token}` },
                 }
             );
+
+            return response.details
         } catch (error) {
             this.handleError('Failed to get user credits', error);
         }
@@ -220,14 +260,27 @@ export class ConnectService {
             }
 
             try {
-                return await this.httpClient.get<UserActive>(
+                const response = await this.httpClient.get<{detail: {
+                        status: string;
+                        code: string;
+                        description: string;
+                        user_active: boolean;
+                    }}
+                >(
                     this.endpoints.getUserActive,
                     {
                         headers: { Authorization: `Bearer ${token}` },
                     }
                 );
+
+                return {
+                    status: response.detail.status,
+                    code: parseInt(response.detail.code) || 0,
+                    isUserActive: response.detail.user_active
+                };
             } catch (error) {
-                this.handleError('Failed to get user credits', error);
+                console.log(error)
+                this.handleError('Failed to get user status', error);
             }
         } catch (error) {
             this.handleError('Failed to get user status', error);
@@ -268,6 +321,11 @@ export class ConnectService {
                 };
 
                 this.saveTokens(tokens, res);
+
+                this.tokenCache = {
+                    accessToken: tokens.accessToken,
+                    expiresAt: tokens.expiresAt
+                };
             }
 
             return {
@@ -287,11 +345,19 @@ export class ConnectService {
         }
 
         try {
+            const formData = new URLSearchParams();
+            formData.append('refresh_token', refreshToken);
+            formData.append('client_id', this.config.clientId);
+            formData.append('grant_type', 'refresh_token');
+
+            // Override content type just for this request
             const response = await this.httpClient.post<TokenData>(
                 this.endpoints.token,
+                formData.toString(),
                 {
-                    refresh_token: refreshToken,
-                    client_id: this.config.clientId
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    }
                 }
             );
 
@@ -343,12 +409,11 @@ export class ConnectService {
      * Clears authentication tokens
      */
     private clearTokens(response: IResponse): void {
+        this.logger.debug('Tokens cleared from cookies');
         response.setCookie(ConnectService.COOKIE_NAME, '', {
             ...this.COOKIE_OPTIONS,
             maxAge: 0
         });
-
-        this.logger.debug('Tokens cleared from cookies');
     }
 
     /**
@@ -367,7 +432,6 @@ export class ConnectService {
      * Creates login post data
      */
     private createLoginPostData(clientIp: string, callbackUrl?: string, callbackType?: string) {
-        console.log(this.config.clientId)
         const postData: Record<string, string> = {
             client_id: this.config.clientId,
             client_ip: clientIp,

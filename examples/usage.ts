@@ -14,8 +14,8 @@ async function example(req: IRequest, res: IResponse) {
             '127.0.0.1',
             'https://your-app.com/callback',
             'local_browser', // Add callbackType parameter,
+            res,
             refreshToken,
-            res
         );
         console.log('Login result:', loginResult);
 
