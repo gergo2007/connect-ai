@@ -149,7 +149,6 @@ class ConnectService {
     }
     invalidateCache() {
         this.logger.debug('Token cache invalidated');
-        return;
         this.tokenCache = {
             accessToken: null,
             expiresAt: 0
@@ -306,7 +305,6 @@ class ConnectService {
      */
     clearTokens(response) {
         this.logger.debug('Tokens cleared from cookies');
-        return;
         response.setCookie(ConnectService.COOKIE_NAME, '', {
             ...this.COOKIE_OPTIONS,
             maxAge: 0

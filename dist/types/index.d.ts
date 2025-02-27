@@ -22,7 +22,7 @@ export interface LoginResponse {
     connected: boolean;
 }
 export interface PollResponse {
-    status: 'pending' | 'complete' | 'error';
+    status: 'pending' | 'complete' | 'error' | 'invalid';
     token?: string;
     meta?: {
         access_token: string;

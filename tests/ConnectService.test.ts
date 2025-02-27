@@ -21,7 +21,6 @@ describe('ConnectService', () => {
             setCookie: jest.fn(),
         };
 
-        // Update the mock to properly mock the entire HttpClient instance
         mockHttpClient = HttpClient.prototype as jest.Mocked<HttpClient>;
     });
 
@@ -94,6 +93,7 @@ describe('ConnectService', () => {
                 'https://example.com/cb',
                 'oauth',
                 mockResponse,
+                null,
                 null
             );
 
@@ -115,7 +115,8 @@ describe('ConnectService', () => {
                     'https://example.com/cb',
                     'oauth',
                     mockResponse,
-                    null
+                    null,
+                    null,
                 )
             ).rejects.toThrow(AuthTokenError);
         });
@@ -141,17 +142,21 @@ describe('ConnectService', () => {
                 expires_in: 3600
             });
 
-            const mockUserActive: UserActive = {
+            mockHttpClient.get.mockResolvedValueOnce({
+                detail: {
+                    status: 'success',
+                    code: '200',
+                    description: 'User is active',
+                    user_active: true
+                }
+            });
+
+            const result = await connectService.checkUserStatus(refreshToken, mockResponse);
+            expect(result).toEqual({
                 status: 'success',
                 isUserActive: true,
                 code: 200
-            };
-
-            // Mock the user status API call
-            mockHttpClient.get.mockResolvedValueOnce(mockUserActive);
-
-            const result = await connectService.checkUserStatus(refreshToken, mockResponse);
-            expect(result).toEqual(mockUserActive);
+            });
         });
     });
 
@@ -174,10 +179,11 @@ describe('ConnectService', () => {
                 expires_in: 3600
             });
 
-            // Mock the user credits API call
             mockHttpClient.get.mockResolvedValueOnce({
-                status: 'success',
-                credits: 100
+                details: {
+                    status: 'success',
+                    credits: 100
+                }
             });
 
             const result = await connectService.getUserCredits(refreshToken, mockResponse);
