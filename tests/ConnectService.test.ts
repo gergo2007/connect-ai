@@ -180,9 +180,9 @@ describe('ConnectService', () => {
             });
 
             mockHttpClient.get.mockResolvedValueOnce({
-                details: {
+                detail: {
                     status: 'success',
-                    credits: 100
+                    points_balance: 100
                 }
             });
 

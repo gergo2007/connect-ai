@@ -263,7 +263,7 @@ export class ConnectService {
 
             return {
                 status: response.detail.status,
-                credits: response.detail.points_balance
+                credits: response.detail?.points_balance || 0
             }
         } catch (error) {
             this.handleError('Failed to get user credits', error);
