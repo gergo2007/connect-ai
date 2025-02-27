@@ -30,6 +30,7 @@ export declare class ConnectService {
      * Initiates login process and saves authentication tokens
      */
     loginAndSaveToken(clientIp: string, callbackUrl: string, callbackType: string, response: IResponse, refreshToken: string | null, pollToken: string | null): Promise<LoginResponse>;
+    private clearPollToken;
     /**
      * Enqueues requests to prevent race conditions during token refresh
      */

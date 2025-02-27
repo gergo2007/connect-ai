@@ -294,7 +294,7 @@ export class ConnectService {
 
                 return {
                     status: response.detail.status,
-                    code: parseInt(response.detail.code) || 200,
+                    code: response.detail.code === '0000' ? 200 : parseInt(response.detail.code) || 0,
                     isUserActive: response.detail.user_active
                 };
             } catch (error) {
