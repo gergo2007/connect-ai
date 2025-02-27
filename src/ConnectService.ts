@@ -248,7 +248,12 @@ export class ConnectService {
 
         try {
             const response = await this.httpClient.get<{
-                details: UserCredits
+                detail: {
+                    status: string,
+                    points_balance: number,
+                    code: string,
+                    description: string
+                }
             }>(
                 this.endpoints.getUserPoints,
                 {
@@ -256,7 +261,10 @@ export class ConnectService {
                 }
             );
 
-            return response.details
+            return {
+                status: response.detail.status,
+                credits: response.detail.points_balance
+            }
         } catch (error) {
             this.handleError('Failed to get user credits', error);
         }

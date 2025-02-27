@@ -1,6 +1,6 @@
 {
   "name": "connect-ai",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "Connect AI Authentication SDK for Node.js",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
