@@ -86,9 +86,11 @@ class ConnectService {
                         maxAge: 0
                     });
                 }
-                return {
-                    connected: pollResponse.status === 'complete',
-                };
+                else {
+                    return {
+                        connected: pollResponse.status === 'complete',
+                    };
+                }
             }
             const postData = this.createLoginPostData(clientIp, callbackUrl, callbackType);
             const loginResponse = await this.httpClient.post(this.endpoints.login, postData);

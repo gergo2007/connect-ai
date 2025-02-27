@@ -128,12 +128,7 @@ export class ConnectService {
             if (pollToken) {
                 const pollResponse = await this.pollForLoginStatus(pollToken, refreshToken, response);
 
-                if (pollResponse.status === 'invalid') {
-                    response.setCookie(ConnectService.POLL_COOKIE_NAME, '', {
-                        ...this.COOKIE_OPTIONS,
-                        maxAge: 0
-                    });
-                } else {
+                if (pollResponse.status !== 'invalid') {
                     return {
                         connected: pollResponse.status === 'complete',
                     };
@@ -151,8 +146,8 @@ export class ConnectService {
                     ...this.COOKIE_OPTIONS,
                 })
             }
-            pollToken = loginResponse.token
 
+            pollToken = loginResponse.token
             const pollResponse = await this.pollForLoginStatus(pollToken, refreshToken, response);
 
             return {
@@ -161,6 +156,13 @@ export class ConnectService {
         } catch (error) {
             throw this.handleError('Login failed', error);
         }
+    }
+
+    private clearPollToken(response: IResponse) {
+        response.setCookie(ConnectService.POLL_COOKIE_NAME, '', {
+            ...this.COOKIE_OPTIONS,
+            maxAge: 0
+        });
     }
 
     /**
@@ -292,7 +294,7 @@ export class ConnectService {
 
                 return {
                     status: response.detail.status,
-                    code: parseInt(response.detail.code) || 0,
+                    code: parseInt(response.detail.code) || 200,
                     isUserActive: response.detail.user_active
                 };
             } catch (error) {
