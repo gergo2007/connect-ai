@@ -133,11 +133,11 @@ export class ConnectService {
                         ...this.COOKIE_OPTIONS,
                         maxAge: 0
                     });
+                } else {
+                    return {
+                        connected: pollResponse.status === 'complete',
+                    };
                 }
-
-                return {
-                    connected: pollResponse.status === 'complete',
-                };
             }
 
             const postData = this.createLoginPostData(clientIp, callbackUrl, callbackType);
