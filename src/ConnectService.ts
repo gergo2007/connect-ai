@@ -29,14 +29,10 @@ export class ConnectService {
     private readonly logger: ILogger;
     private requestQueue: Promise<any> = Promise.resolve();
 
-    // Token cache implementation
-    private tokenCache: {
+    private tokenCaches: Map<string, {
         accessToken: string | null;
         expiresAt: number;
-    } = {
-        accessToken: null,
-        expiresAt: 0
-    };
+    }> = new Map();
 
     // Cache buffer time (30 seconds before expiration)
     private readonly TOKEN_CACHE_BUFFER_MS = 30000;
@@ -188,31 +184,37 @@ export class ConnectService {
     ): Promise<string | null> {
         return this.enqueueRequest(async () => {
             try {
-                const now = Date.now();
-                if (this.tokenCache.accessToken && this.tokenCache.expiresAt > now + this.TOKEN_CACHE_BUFFER_MS) {
-                    this.logger.debug('Using cached access token');
-                    return this.tokenCache.accessToken;
-                }
-
                 if (!refreshToken) {
                     this.logger.debug('No refresh token found, skipping');
                     return null;
+                }
+
+                const cacheKey = refreshToken;
+                const userCache = this.tokenCaches.get(cacheKey) || {
+                    accessToken: null,
+                    expiresAt: 0
+                };
+
+                const now = Date.now();
+                if (userCache.accessToken && userCache.expiresAt > now + this.TOKEN_CACHE_BUFFER_MS) {
+                    this.logger.debug('Using cached access token');
+                    return userCache.accessToken;
                 }
 
                 const refreshedTokens = await this.withRetry(() => this.refreshToken(refreshToken));
                 if (!refreshedTokens) {
                     this.logger.error('Failed to refresh tokens');
                     this.clearTokens(response);
-                    this.invalidateCache();
+                    this.invalidateCache(cacheKey);
                     return null;
                 }
 
                 this.saveTokens(refreshedTokens, response);
 
-                this.tokenCache = {
+                this.tokenCaches.set(cacheKey, {
                     accessToken: refreshedTokens.accessToken,
                     expiresAt: refreshedTokens.expiresAt
-                };
+                });
 
                 return refreshedTokens.accessToken;
             } catch (error) {
@@ -220,18 +222,17 @@ export class ConnectService {
                     error: error instanceof Error ? error.message : 'Unknown error'
                 });
                 this.clearTokens(response);
-                this.invalidateCache();
+                if (refreshToken) {
+                    this.invalidateCache(refreshToken);
+                }
                 return null;
             }
         });
     }
 
-    private invalidateCache(): void {
-        this.logger.debug('Token cache invalidated');
-        this.tokenCache = {
-            accessToken: null,
-            expiresAt: 0
-        };
+    private invalidateCache(cacheKey: string): void {
+        this.logger.debug('Token cache invalidated for user');
+        this.tokenCaches.delete(cacheKey);
     }
 
     /**
@@ -349,10 +350,10 @@ export class ConnectService {
 
                 this.saveTokens(tokens, res);
 
-                this.tokenCache = {
+                this.tokenCaches.set(tokens.refreshToken, {
                     accessToken: tokens.accessToken,
                     expiresAt: tokens.expiresAt
-                };
+                });
             }
 
             return {

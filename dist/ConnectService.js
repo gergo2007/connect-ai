@@ -15,11 +15,7 @@ class ConnectService {
      */
     constructor(config, logger) {
         this.requestQueue = Promise.resolve();
-        // Token cache implementation
-        this.tokenCache = {
-            accessToken: null,
-            expiresAt: 0
-        };
+        this.tokenCaches = new Map();
         // Cache buffer time (30 seconds before expiration)
         this.TOKEN_CACHE_BUFFER_MS = 30000;
         this.COOKIE_OPTIONS = {
@@ -129,27 +125,32 @@ class ConnectService {
     async getValidToken(refreshToken, response) {
         return this.enqueueRequest(async () => {
             try {
-                const now = Date.now();
-                if (this.tokenCache.accessToken && this.tokenCache.expiresAt > now + this.TOKEN_CACHE_BUFFER_MS) {
-                    this.logger.debug('Using cached access token');
-                    return this.tokenCache.accessToken;
-                }
                 if (!refreshToken) {
                     this.logger.debug('No refresh token found, skipping');
                     return null;
+                }
+                const cacheKey = refreshToken;
+                const userCache = this.tokenCaches.get(cacheKey) || {
+                    accessToken: null,
+                    expiresAt: 0
+                };
+                const now = Date.now();
+                if (userCache.accessToken && userCache.expiresAt > now + this.TOKEN_CACHE_BUFFER_MS) {
+                    this.logger.debug('Using cached access token');
+                    return userCache.accessToken;
                 }
                 const refreshedTokens = await this.withRetry(() => this.refreshToken(refreshToken));
                 if (!refreshedTokens) {
                     this.logger.error('Failed to refresh tokens');
                     this.clearTokens(response);
-                    this.invalidateCache();
+                    this.invalidateCache(cacheKey);
                     return null;
                 }
                 this.saveTokens(refreshedTokens, response);
-                this.tokenCache = {
+                this.tokenCaches.set(cacheKey, {
                     accessToken: refreshedTokens.accessToken,
                     expiresAt: refreshedTokens.expiresAt
-                };
+                });
                 return refreshedTokens.accessToken;
             }
             catch (error) {
@@ -157,17 +158,16 @@ class ConnectService {
                     error: error instanceof Error ? error.message : 'Unknown error'
                 });
                 this.clearTokens(response);
-                this.invalidateCache();
+                if (refreshToken) {
+                    this.invalidateCache(refreshToken);
+                }
                 return null;
             }
         });
     }
-    invalidateCache() {
-        this.logger.debug('Token cache invalidated');
-        this.tokenCache = {
-            accessToken: null,
-            expiresAt: 0
-        };
+    invalidateCache(cacheKey) {
+        this.logger.debug('Token cache invalidated for user');
+        this.tokenCaches.delete(cacheKey);
     }
     /**
      * Gets user credits using valid token
@@ -184,7 +184,10 @@ class ConnectService {
             const response = await this.httpClient.get(this.endpoints.getUserPoints, {
                 headers: { Authorization: `Bearer ${token}` },
             });
-            return response.details;
+            return {
+                status: response.detail.status,
+                credits: response.detail?.points_balance || 0
+            };
         }
         catch (error) {
             this.handleError('Failed to get user credits', error);
@@ -251,10 +254,10 @@ class ConnectService {
                     expiresAt: Date.now() + (pollResponse.meta.expires_in * 1000)
                 };
                 this.saveTokens(tokens, res);
-                this.tokenCache = {
+                this.tokenCaches.set(tokens.refreshToken, {
                     accessToken: tokens.accessToken,
                     expiresAt: tokens.expiresAt
-                };
+                });
             }
             return {
                 status: pollResponse.status,

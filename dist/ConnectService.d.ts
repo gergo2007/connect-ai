@@ -11,7 +11,7 @@ export declare class ConnectService {
     private readonly httpClient;
     private readonly logger;
     private requestQueue;
-    private tokenCache;
+    private tokenCaches;
     private readonly TOKEN_CACHE_BUFFER_MS;
     private readonly COOKIE_OPTIONS;
     private endpoints;
