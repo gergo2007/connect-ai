@@ -198,7 +198,7 @@ class ConnectService {
      * @throws {AuthTokenError} When token validation fails
      * @returns {Promise<UserActive>}
      */
-    async checkUserStatus(refreshToken, accessToken, res) {
+    async checkUserStatus(refreshToken, res, accessToken) {
         try {
             if (!accessToken) {
                 const accessToken = await this.getValidToken(refreshToken, res);
@@ -236,7 +236,7 @@ class ConnectService {
         try {
             const accessToken = await this.getValidToken(refreshToken, res);
             if (accessToken) {
-                const result = await this.checkUserStatus(refreshToken, accessToken, res);
+                const result = await this.checkUserStatus(refreshToken, res, accessToken);
                 return {
                     status: result.status,
                     code: result.code,
@@ -262,7 +262,7 @@ class ConnectService {
                     accessToken: tokens.accessToken,
                     expiresAt: tokens.expiresAt
                 });
-                const result = await this.checkUserStatus(null, tokens.accessToken, res);
+                const result = await this.checkUserStatus(null, res, tokens.accessToken);
                 return {
                     status: pollResponse.status,
                     code: result.code,

@@ -320,7 +320,7 @@ export class ConnectService {
     /**
      * Polls for login status and saves tokens if successful
      */
-    public async pollForLoginStatus(pollToken: string, refreshToken: string | null, res: IResponse) {
+    public async pollForLoginStatus(pollToken: string, refreshToken: string | null, res: IResponse): Promise<UserActive> {
         try {
             const accessToken = await this.getValidToken(refreshToken, res);
             if (accessToken) {
@@ -335,6 +335,8 @@ export class ConnectService {
             if (!pollToken) {
                 return {
                     status: 'error',
+                    code: -1,
+                    isUserActive: false,
                 }
             }
 
