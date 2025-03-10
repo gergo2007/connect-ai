@@ -246,6 +246,8 @@ class ConnectService {
             if (!pollToken) {
                 return {
                     status: 'error',
+                    code: -1,
+                    isUserActive: false,
                 };
             }
             const pollResponse = await this.httpClient.get(this.endpoints.poll, {

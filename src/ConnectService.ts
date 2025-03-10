@@ -279,14 +279,15 @@ export class ConnectService {
     public async checkUserStatus(refreshToken: string | null, res: IResponse, accessToken?: string | null): Promise<UserActive> {
         try {
             if (!accessToken) {
-                const accessToken = await this.getValidToken(refreshToken, res);
-                if (!accessToken) {
-                    return {
-                        status: 'error',
-                        isUserActive: false,
-                        code: 0,
-                    };
-                }
+                accessToken = await this.getValidToken(refreshToken, res);
+            }
+
+            if (!accessToken) {
+                return {
+                    status: 'error',
+                    isUserActive: false,
+                    code: 0,
+                };
             }
 
             try {
