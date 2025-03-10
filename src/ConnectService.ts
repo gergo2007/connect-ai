@@ -276,15 +276,17 @@ export class ConnectService {
      * @throws {AuthTokenError} When token validation fails
      * @returns {Promise<UserActive>}
      */
-    public async checkUserStatus(refreshToken: string | null, res: IResponse): Promise<UserActive> {
+    public async checkUserStatus(refreshToken: string | null, accessToken: string | null, res: IResponse): Promise<UserActive> {
         try {
-            const token = await this.getValidToken(refreshToken, res);
-            if (!token) {
-                return {
-                    status: 'error',
-                    isUserActive: false,
-                    code: 0,
-                };
+            if (!accessToken) {
+                const accessToken = await this.getValidToken(refreshToken, res);
+                if (!accessToken) {
+                    return {
+                        status: 'error',
+                        isUserActive: false,
+                        code: 0,
+                    };
+                }
             }
 
             try {
@@ -297,7 +299,7 @@ export class ConnectService {
                 >(
                     this.endpoints.getUserActive,
                     {
-                        headers: { Authorization: `Bearer ${token}` },
+                        headers: { Authorization: `Bearer ${accessToken}` },
                     }
                 );
 
@@ -320,17 +322,19 @@ export class ConnectService {
      */
     public async pollForLoginStatus(pollToken: string, refreshToken: string | null, res: IResponse) {
         try {
-            const token = await this.getValidToken(refreshToken, res);
-            if (token) {
-                const result = await this.checkUserStatus(refreshToken, res)
+            const accessToken = await this.getValidToken(refreshToken, res);
+            if (accessToken) {
+                const result = await this.checkUserStatus(refreshToken, accessToken, res)
                 return {
-                    status: result.isUserActive ? 'complete' : 'pending'
+                    status: result.status,
+                    code: result.code,
+                    isUserActive: result.isUserActive,
                 }
             }
 
             if (!pollToken) {
                 return {
-                    status: 'error'
+                    status: 'error',
                 }
             }
 
@@ -354,10 +358,19 @@ export class ConnectService {
                     accessToken: tokens.accessToken,
                     expiresAt: tokens.expiresAt
                 });
+
+                const result = await this.checkUserStatus(null, tokens.accessToken, res)
+                return {
+                    status: pollResponse.status,
+                    code: result.code,
+                    isUserActive: result.isUserActive,
+                }
             }
 
             return {
                 status: pollResponse.status,
+                code: 200,
+                isUserActive: pollResponse.status === 'complete',
             };
         } catch (error) {
             this.handleError('Poll status check failed', error);

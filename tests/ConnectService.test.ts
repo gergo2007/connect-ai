@@ -88,6 +88,16 @@ describe('ConnectService', () => {
                 }
             });
 
+            // Mock the getUserActive API call
+            mockHttpClient.get.mockResolvedValueOnce({
+                detail: {
+                    status: 'success',
+                    code: '200',
+                    description: 'User is active',
+                    user_active: true
+                }
+            });
+
             const result = await connectService.loginAndSaveToken(
                 '192.168.1.1',
                 'https://example.com/cb',
@@ -124,7 +134,7 @@ describe('ConnectService', () => {
 
     describe('User Status', () => {
         it('should return inactive status when no valid token exists', async () => {
-            const result = await connectService.checkUserStatus(null, mockResponse);
+            const result = await connectService.checkUserStatus(null, null, mockResponse);
             expect(result).toEqual({
                 status: 'error',
                 isUserActive: false,
@@ -151,7 +161,7 @@ describe('ConnectService', () => {
                 }
             });
 
-            const result = await connectService.checkUserStatus(refreshToken, mockResponse);
+            const result = await connectService.checkUserStatus(refreshToken, null, mockResponse);
             expect(result).toEqual({
                 status: 'success',
                 isUserActive: true,
@@ -209,9 +219,21 @@ describe('ConnectService', () => {
                 }
             });
 
+            // Mock the getUserActive API call
+            mockHttpClient.get.mockResolvedValueOnce({
+                detail: {
+                    status: 'success',
+                    code: '200',
+                    description: 'User is active',
+                    user_active: true
+                }
+            });
+
             const result = await connectService.pollForLoginStatus(pollToken, refreshToken, mockResponse);
             expect(result).toEqual({
-                status: 'complete'
+                status: 'complete',
+                code: 200,
+                isUserActive: true,
             });
 
             // Verify that the refresh token was saved
@@ -232,7 +254,9 @@ describe('ConnectService', () => {
 
             const result = await connectService.pollForLoginStatus(pollToken, null, mockResponse);
             expect(result).toEqual({
-                status: 'pending'
+                status: 'pending',
+                code: 200,
+                isUserActive: false,
             });
         });
     });
