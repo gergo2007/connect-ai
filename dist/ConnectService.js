@@ -201,14 +201,14 @@ class ConnectService {
     async checkUserStatus(refreshToken, res, accessToken) {
         try {
             if (!accessToken) {
-                const accessToken = await this.getValidToken(refreshToken, res);
-                if (!accessToken) {
-                    return {
-                        status: 'error',
-                        isUserActive: false,
-                        code: 0,
-                    };
-                }
+                accessToken = await this.getValidToken(refreshToken, res);
+            }
+            if (!accessToken) {
+                return {
+                    status: 'error',
+                    isUserActive: false,
+                    code: 0,
+                };
             }
             try {
                 const response = await this.httpClient.get(this.endpoints.getUserActive, {

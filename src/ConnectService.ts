@@ -348,6 +348,13 @@ export class ConnectService {
                 }
             );
 
+            if (pollResponse.status === 'invalid') {
+                res.setCookie(ConnectService.POLL_COOKIE_NAME, '', {
+                    ...this.COOKIE_OPTIONS,
+                    maxAge: 0
+                });
+            }
+
             if (pollResponse.status === 'complete' && pollResponse.meta) {
                 const tokens: AuthTokens = {
                     accessToken: pollResponse.meta.access_token,
