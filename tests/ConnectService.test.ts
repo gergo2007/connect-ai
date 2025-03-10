@@ -134,7 +134,7 @@ describe('ConnectService', () => {
 
     describe('User Status', () => {
         it('should return inactive status when no valid token exists', async () => {
-            const result = await connectService.checkUserStatus(null, null, mockResponse);
+            const result = await connectService.checkUserStatus(null, mockResponse);
             expect(result).toEqual({
                 status: 'error',
                 isUserActive: false,
@@ -161,7 +161,7 @@ describe('ConnectService', () => {
                 }
             });
 
-            const result = await connectService.checkUserStatus(refreshToken, null, mockResponse);
+            const result = await connectService.checkUserStatus(refreshToken, mockResponse);
             expect(result).toEqual({
                 status: 'success',
                 isUserActive: true,

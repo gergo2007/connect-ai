@@ -29,7 +29,7 @@ async function example(req: IRequest, res: IResponse) {
             console.log('User credits:', credits);
 
             // Check user status
-            const status = await authService.checkUserStatus(refreshToken, null, res);
+            const status = await authService.checkUserStatus(refreshToken, res);
             console.log('User status:', status.isUserActive);
         } else {
             console.log('User not connected yet. Please complete the authentication flow.');

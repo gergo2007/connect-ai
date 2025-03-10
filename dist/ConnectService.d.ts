@@ -49,12 +49,18 @@ export declare class ConnectService {
      * @throws {AuthTokenError} When token validation fails
      * @returns {Promise<UserActive>}
      */
-    checkUserStatus(refreshToken: string | null, res: IResponse): Promise<UserActive>;
+    checkUserStatus(refreshToken: string | null, accessToken: string | null, res: IResponse): Promise<UserActive>;
     /**
      * Polls for login status and saves tokens if successful
      */
     pollForLoginStatus(pollToken: string, refreshToken: string | null, res: IResponse): Promise<{
         status: string;
+        code: number;
+        isUserActive: boolean;
+    } | {
+        status: string;
+        code?: undefined;
+        isUserActive?: undefined;
     }>;
     /**
      * Refreshes the access token using refresh token
