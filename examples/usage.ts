@@ -9,7 +9,6 @@ async function example(req: IRequest, res: IResponse) {
     try {
         // Get refresh token from cookies
         const refreshToken = req.cookies?.[ConnectService.COOKIE_NAME] || null;
-        const pollToken = req.cookies?.[ConnectService.POLL_COOKIE_NAME] || null;
 
         // Login and save token
         const loginResult = await authService.loginAndSaveToken(
@@ -18,7 +17,6 @@ async function example(req: IRequest, res: IResponse) {
             'local_browser',
             res,
             refreshToken,
-            pollToken
         );
         console.log('Login result:', loginResult);
 

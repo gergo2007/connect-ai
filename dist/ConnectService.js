@@ -253,6 +253,12 @@ class ConnectService {
             const pollResponse = await this.httpClient.get(this.endpoints.poll, {
                 params: { token: pollToken },
             });
+            if (pollResponse.status === 'invalid') {
+                res.setCookie(ConnectService.POLL_COOKIE_NAME, '', {
+                    ...this.COOKIE_OPTIONS,
+                    maxAge: 0
+                });
+            }
             if (pollResponse.status === 'complete' && pollResponse.meta) {
                 const tokens = {
                     accessToken: pollResponse.meta.access_token,

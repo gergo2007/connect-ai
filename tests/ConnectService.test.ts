@@ -104,7 +104,6 @@ describe('ConnectService', () => {
                 'oauth',
                 mockResponse,
                 null,
-                null
             );
 
             expect(result).toEqual({
@@ -125,7 +124,6 @@ describe('ConnectService', () => {
                     'https://example.com/cb',
                     'oauth',
                     mockResponse,
-                    null,
                     null,
                 )
             ).rejects.toThrow(AuthTokenError);

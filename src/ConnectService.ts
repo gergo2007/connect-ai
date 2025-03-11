@@ -114,21 +114,10 @@ export class ConnectService {
         callbackType: string,
         response: IResponse,
         refreshToken: string | null,
-        pollToken: string | null
     ): Promise<LoginResponse> {
         try {
             if (!this.validateClientIp(clientIp)) {
                 throw new AuthTokenError('Invalid client IP address', 'INVALID_IP');
-            }
-
-            if (pollToken) {
-                const pollResponse = await this.pollForLoginStatus(pollToken, refreshToken, response);
-
-                if (pollResponse.status !== 'invalid') {
-                    return {
-                        connected: pollResponse.status === 'complete',
-                    };
-                }
             }
 
             const postData = this.createLoginPostData(clientIp, callbackUrl, callbackType);
@@ -143,8 +132,7 @@ export class ConnectService {
                 })
             }
 
-            pollToken = loginResponse.token
-            const pollResponse = await this.pollForLoginStatus(pollToken, refreshToken, response);
+            const pollResponse = await this.pollForLoginStatus(loginResponse.token, refreshToken, response);
 
             return {
                 connected: pollResponse.status === 'complete',
