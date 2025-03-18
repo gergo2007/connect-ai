@@ -69,18 +69,10 @@ class ConnectService {
     /**
      * Initiates login process and saves authentication tokens
      */
-    async loginAndSaveToken(clientIp, callbackUrl, callbackType, response, refreshToken, pollToken) {
+    async loginAndSaveToken(clientIp, callbackUrl, callbackType, response, refreshToken) {
         try {
             if (!this.validateClientIp(clientIp)) {
                 throw new AuthTokenError_1.AuthTokenError('Invalid client IP address', 'INVALID_IP');
-            }
-            if (pollToken) {
-                const pollResponse = await this.pollForLoginStatus(pollToken, refreshToken, response);
-                if (pollResponse.status !== 'invalid') {
-                    return {
-                        connected: pollResponse.status === 'complete',
-                    };
-                }
             }
             const postData = this.createLoginPostData(clientIp, callbackUrl, callbackType);
             const loginResponse = await this.httpClient.post(this.endpoints.login, postData);
@@ -89,8 +81,7 @@ class ConnectService {
                     ...this.COOKIE_OPTIONS,
                 });
             }
-            pollToken = loginResponse.token;
-            const pollResponse = await this.pollForLoginStatus(pollToken, refreshToken, response);
+            const pollResponse = await this.pollForLoginStatus(loginResponse.token, refreshToken, response);
             return {
                 connected: pollResponse.status === 'complete',
             };

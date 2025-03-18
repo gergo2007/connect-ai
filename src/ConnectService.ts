@@ -232,6 +232,7 @@ export class ConnectService {
             return {
                 status: 'error',
                 credits: 0,
+                isUserActive: false,
             };
         }
 
@@ -251,8 +252,9 @@ export class ConnectService {
             );
 
             return {
-                status: response.detail.status,
-                credits: response.detail?.points_balance || 0
+                status: response.detail?.status,
+                credits: response.detail?.points_balance || 0,
+                isUserActive: response.detail?.status === 'completed',
             }
         } catch (error) {
             this.handleError('Failed to get user credits', error);

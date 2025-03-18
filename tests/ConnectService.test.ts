@@ -173,7 +173,8 @@ describe('ConnectService', () => {
             const result = await connectService.getUserCredits(null, mockResponse);
             expect(result).toEqual({
                 status: 'error',
-                credits: 0
+                credits: 0,
+                isUserActive: false,
             });
         });
 
@@ -189,15 +190,16 @@ describe('ConnectService', () => {
 
             mockHttpClient.get.mockResolvedValueOnce({
                 detail: {
-                    status: 'success',
+                    status: 'completed',
                     points_balance: 100
                 }
             });
 
             const result = await connectService.getUserCredits(refreshToken, mockResponse);
             expect(result).toEqual({
-                status: 'success',
-                credits: 100
+                status: 'completed',
+                credits: 100,
+                isUserActive: true,
             });
         });
     });
