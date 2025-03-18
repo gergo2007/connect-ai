@@ -169,6 +169,7 @@ class ConnectService {
             return {
                 status: 'error',
                 credits: 0,
+                isUserActive: false,
             };
         }
         try {
@@ -176,8 +177,9 @@ class ConnectService {
                 headers: { Authorization: `Bearer ${token}` },
             });
             return {
-                status: response.detail.status,
-                credits: response.detail?.points_balance || 0
+                status: response.detail?.status,
+                credits: response.detail?.points_balance || 0,
+                isUserActive: response.detail?.status === 'completed',
             };
         }
         catch (error) {

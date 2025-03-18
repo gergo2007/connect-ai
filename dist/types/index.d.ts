@@ -33,6 +33,7 @@ export interface PollResponse {
 export interface UserCredits {
     credits: number;
     status: string;
+    isUserActive: boolean;
 }
 export interface UserActive {
     code: number;
